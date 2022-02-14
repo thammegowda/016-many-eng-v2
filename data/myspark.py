@@ -3,15 +3,13 @@
 
 from pyspark.sql import SparkSession
 import pyspark
+from os import environ
 
-# please edit this section; give the highest available
-cpus = 60
-memory = '900g'  # yeah! thanks USC CARC for largemem nodes! 1TB RAM is no joke :-D 
+# PLEASE SET THESE VARS
+cpus = int(environ.get('SPARK_CPUS', '8'))
+memory = environ.get('SPARK_MEM', '80G')
+tmp_dir = environ.get('SPARK_TMPDIR', "/scratch2/tnarayan/tmp/spark")
 
-cpus = 50
-memory = '500g'
-
-tmp_dir = "/scratch2/tnarayan/tmp/spark"
 
 spark = SparkSession.builder \
     .master(f"local[{cpus}]") \

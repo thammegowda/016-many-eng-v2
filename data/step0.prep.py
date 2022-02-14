@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 
-
 import unicodedata
 import html
 import hashlib
 import sys
 import argparse
+from tqdm import tqdm
 
-
-
-from myspark import spark
+#from myspark import spark
 from sm_tokenizer import tokenize_src, tokenize_eng, TOK_ERR_PREF
 
 MAX_CHARS = 1024
@@ -29,9 +27,9 @@ def hash_text(text):
 
 
 def clean(text):
-    if text is None:
+    if not text:
         return ''
-    text = ' '.join(text.split()).strip()
+    text = ' '.join(text.replace('\r', ' ').replace('\t', ' ').replace('\n', ' ').split()).strip()
     text = html.unescape(text)
     text = unicodedata.normalize('NFKC', text)
     return text
@@ -39,7 +37,7 @@ def clean(text):
 
 def hash_tsv_segs(path):
     mem = set()
-    for id_, src, eng in read_tsv(path):
+    for id_, src, eng in tqdm(read_tsv(path), desc='Hashing heldout sents'):
         mem.add(hash_text(clean(src)))
         mem.add(hash_text(clean(eng)))
     return mem
@@ -84,21 +82,22 @@ def is_valid_row(row):
         return False
     if not len(did.split('-')) != 5:  # Group-name-version-lang1-lang2
         return False
-    if src.starswith(TOK_ERR_PREF) or eng.startswith(TOK_ERR_PREF):
+    if src.startswith(TOK_ERR_PREF) or eng.startswith(TOK_ERR_PREF):
         return False
     if len(src.split()) >= MAX_TOKS and len(eng.split()) > MAX_TOKS:
         return False
     return True
 
 
-def prepare_train(inp_file, out_file, exclude_hashes):
-    if isinstance(inp_file, list):
-        inp_file = ','.join(inp_file)
-    assert isinstance(inp_file, str)
+def prepare_train(spark, inp_file, out_file, exclude_hashes):
+    #if isinstance(inp_file, list):
+    #    inp_file = ','.join(inp_file)
+    assert isinstance(inp_file, (str,list))
     assert isinstance(out_file, str)
     assert isinstance(exclude_hashes, set)
 
     print(f"Clean train_file {inp_file} ->  {out_file}")
+    
     spark.read.csv(inp_file, sep='\t', schema=SCHEMA) \
         .rdd.map(lambda row: (row.did, clean(row.src), clean(row.eng))) \
         .filter(lambda row: is_good(src=row[1], eng=row[2], exclude_hashes=exclude_hashes)) \
@@ -109,7 +108,7 @@ def prepare_train(inp_file, out_file, exclude_hashes):
     print("Done")
 
 
-def prepare_held_out(inp_file, out_file):
+def prepare_held_out(spark, inp_file, out_file):
     print(f"Tokenize held-out file {inp_file} ->  {out_file}")
     spark.read.csv(inp_file, sep='\t', schema=SCHEMA) \
         .rdd.map(lambda row: (
@@ -124,9 +123,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-ti", "--train-in",  nargs='+', help="Training input file in TSV format: DID\\tSRC\\tENG")
     parser.add_argument("-to", "--train-out",  required=True, help="Training output file")
-    parser.add_argument("-hi", "--heldout-in", nargs='+', help="Dev and Test Heldout input file: DID\\tSRC\\tENG")
-    parser.add_argument("-o", "--out", type=argparse.FileType('w', encoding='utf-8'), default=sys.stdin,
-                        help="Input file. Default: STDOUT")
+    parser.add_argument("-hi", "--heldout-in", help="Dev and Test Heldout input file: DID\\tSRC\\tENG")
+
     args = parser.parse_args()
     return vars(args)
 
@@ -136,10 +134,12 @@ def main(train_in, train_out, heldout_in):
     #inp_file = 'train-all.tsv'
     #out_file = 'train-all.prepared.tsv'
     #held_out_file = 'devs-tests-all.tsv'  # these sentences are to be excluded
+    from myspark import spark
+    exclude_hashes = heldout_in and hash_tsv_segs(heldout_in) or set()
+    prepare_train(spark, train_in, train_out, exclude_hashes=exclude_hashes)
 
-    exclude_hashes = hash_tsv_segs(heldout_in)
-    prepare_train(train_in, train_out, exclude_hashes=exclude_hashes)
-    prepare_held_out(heldout_in, heldout_in.replace('.tsv', '') + '.tok.tsv')
+    heldout_out = heldout_in.replace('.tsv', '') + '.tok.tsv'
+    prepare_held_out(spark, heldout_in, heldout_out)
 
 
 if __name__ == '__main__':

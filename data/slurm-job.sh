@@ -8,7 +8,13 @@
 
 
 source ~/.bashrc
-conda activate rtg-py39  # should have pyspark installed
+conda activate rtg-py39  # conda env should have pyspark installed
+
+
+# EDIT THESE
+export SPARK_CPUS=60
+export SPARK_MEM="500G"
+export SPARK_TMPDIR="/scratch2/tnarayan/tmp/spark"
 
 
 script="$1"

@@ -3,16 +3,16 @@
 import unicodedata
 import html
 import hashlib
-import sys
 import argparse
+from pathlib import Path
 from tqdm import tqdm
 
-#from myspark import spark
 from sm_tokenizer import tokenize_src, tokenize_eng, TOK_ERR_PREF
 
 MAX_CHARS = 1024
 LEN_RATIO = 5
 MAX_TOKS = 512
+LONGEST_TOKEN_LEN = 64 #  chars
 SCHEMA = 'did STRING, src STRING, eng STRING'
 
 
@@ -78,13 +78,18 @@ def is_valid_row(row):
     if len(row) != 3:  # DID, SRC, ENG
         return False
     did, src, eng = row
+
     if not did or not src or not eng:
         return False
-    if not len(did.split('-')) != 5:  # Group-name-version-lang1-lang2
+    if len(did.split('-')) != 5:  # Group-name-version-lang1-lang2
         return False
     if src.startswith(TOK_ERR_PREF) or eng.startswith(TOK_ERR_PREF):
         return False
-    if len(src.split()) >= MAX_TOKS and len(eng.split()) > MAX_TOKS:
+    src_toks, eng_toks = src.split(), eng.split()
+    if len(src_toks) >= MAX_TOKS or len(eng_toks) > MAX_TOKS:
+        return False
+    longest_tok_len = max(max(len(x) for x in src_toks), max(len(x) for x in eng_toks))
+    if longest_tok_len > LONGEST_TOKEN_LEN:
         return False
     return True
 
@@ -92,12 +97,12 @@ def is_valid_row(row):
 def prepare_train(spark, inp_file, out_file, exclude_hashes):
     #if isinstance(inp_file, list):
     #    inp_file = ','.join(inp_file)
-    assert isinstance(inp_file, (str,list))
+    assert isinstance(inp_file, (str, list))
     assert isinstance(out_file, str)
     assert isinstance(exclude_hashes, set)
 
     print(f"Clean train_file {inp_file} ->  {out_file}")
-    
+
     spark.read.csv(inp_file, sep='\t', schema=SCHEMA) \
         .rdd.map(lambda row: (row.did, clean(row.src), clean(row.eng))) \
         .filter(lambda row: is_good(src=row[1], eng=row[2], exclude_hashes=exclude_hashes)) \
@@ -139,7 +144,10 @@ def main(train_in, train_out, heldout_in):
     prepare_train(spark, train_in, train_out, exclude_hashes=exclude_hashes)
 
     heldout_out = heldout_in.replace('.tsv', '') + '.tok.tsv'
-    prepare_held_out(spark, heldout_in, heldout_out)
+    if not Path(heldout_out, '_SUCCESS').exists():
+        prepare_held_out(spark, heldout_in, heldout_out)
+    else:
+        print(f"{heldout_out} exists, skipping...")
 
 
 if __name__ == '__main__':

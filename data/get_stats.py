@@ -65,7 +65,8 @@ if __name__ == '__main__':
     #inp_file = 'train-all.10M.tsv'
     #inp_file = 'train-all.tsv'
     #inp_file = 'train-all-dedup.tsv'
-    inp_file = 'train-all-dedup-smtok-nourl.tsv'
+    #inp_file = 'train-all-dedup-smtok-nourl.tsv'
+    inp_file = 'train-all.cleandedupe.tok.tsv'
     
     out_file = inp_file.replace('.tsv', '') + '.stats.tsv'
 

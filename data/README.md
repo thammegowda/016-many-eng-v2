@@ -25,6 +25,7 @@ At USC CARC, we have largmem nodes with 1TB RAM. So I configured sulrm jobs and 
      cat train-all.cleandedupe.tok.tsv/part-* | tqdm --total=2314289643 --unit-scale=1 \
       | awk -F '\t' -v out=train-all.cleandedupe '{print $1 > out".did"; print $2> out".src.tok"; print $3 > out".eng.tok"}'
 
+
 . Combine dev and tests (from spark partitions) into single file
     
     cat devs-tests-all.tok.tsv/part-000* > devs-tests-all.1file.tok.tsv
@@ -33,3 +34,12 @@ At USC CARC, we have largmem nodes with 1TB RAM. So I configured sulrm jobs and 
     cat  devs-tests-all.1file.tok.tsv | grep -v 'visitestonia' | grep $'^[^\t]*test.*' > tests-all.tok.tsv
     cat  devs-tests-all.1file.tok.tsv | grep -v 'visitestonia' | grep -v $'^[^\t]*test.*' > devs-all.tok.tsv
 
+
+. Downsample training corpus, limit 1M sentences per language 
+
+    sbatch -J down-sample slurm-job.sh ./step1.downsample.py
+
+    cat train-all.cleandedupe.downsample.tok.tsv/part-* | tqdm --total=123000000 --unit-scale=1 \ 
+      | awk -F '\t' -v out=train-all.cleandedupe.downsampple '{print $1 > out".did"; print $2> out".src.tok"; print $3 > out".eng.tok"}'
+    
+    

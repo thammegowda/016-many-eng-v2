@@ -26,6 +26,7 @@ def downsample_sents(spark, inp_file, out_file, threshold: dict[str,float]):
     spark.read.csv(inp_file, sep='\t', schema=SCHEMA) \
         .rdd.map(lambda row: (row.did, row.src, row.eng)) \
         .filter(lambda row: is_select(row[0], threshold)) \
+        .filter(lambda row: all(row)) \
         .map('\t'.join).saveAsTextFile(out_file)
     print("Done")
 

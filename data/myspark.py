@@ -8,7 +8,7 @@ from os import environ
 # PLEASE SET THESE VARS
 cpus = int(environ.get('SPARK_CPUS', '8'))
 memory = environ.get('SPARK_MEM', '80G')
-tmp_dir = environ.get('SPARK_TMPDIR', "/scratch2/tnarayan/tmp/spark")
+tmp_dir = environ.get('SPARK_TMPDIR', environ.get("TMPDIR", "/tmp"))
 
 
 spark = SparkSession.builder \

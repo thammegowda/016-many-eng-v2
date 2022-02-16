@@ -1,0 +1,4 @@
+tqdm
+pyspark==3.0.0
+sacremoses==0.0.47
+nlcodec==0.5

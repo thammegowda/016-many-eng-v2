@@ -116,11 +116,9 @@ def prepare_train(spark, inp_file, out_file, exclude_hashes):
 def prepare_held_out(spark, inp_file, out_file):
     print(f"Tokenize held-out file {inp_file} ->  {out_file}")
     spark.read.csv(inp_file, sep='\t', schema=SCHEMA) \
-        .rdd.map(lambda row: (
-            row.did or '', tokenize_src(row.src) or '', tokenize_eng(row.eng) or '',
-            (row.src or '').replace('\r', ' ').replace('\t', ' '),
-            (row.eng or '').replace('\r', ' ').replace('\t', ' '))) \
-        .map('\t'.join).saveAsTextFile(out_file)
+        .rdd.map(lambda row: (row.did or '', clean(row.src) or '', clean(row.eng) or ''))\
+            .map(lambda row: (row[0], tokenize_src(row[1]) or '', tokenize_eng(row[2]) or '', row[1], row[2])) \
+            .map('\t'.join).saveAsTextFile(out_file)
     print("Done")
 
 
@@ -141,7 +139,10 @@ def main(train_in, train_out, heldout_in):
     #held_out_file = 'devs-tests-all.tsv'  # these sentences are to be excluded
     from myspark import spark
     exclude_hashes = heldout_in and hash_tsv_segs(heldout_in) or set()
-    prepare_train(spark, train_in, train_out, exclude_hashes=exclude_hashes)
+    if not Path(train_out, '_SUCCESS').exists():
+        prepare_train(spark, train_in, train_out, exclude_hashes=exclude_hashes)
+    else:
+        print(f"{train_out} exists, skipping...")
 
     heldout_out = heldout_in.replace('.tsv', '') + '.tok.tsv'
     if not Path(heldout_out, '_SUCCESS').exists():

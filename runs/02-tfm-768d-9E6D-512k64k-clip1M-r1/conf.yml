@@ -1,0 +1,99 @@
+# this config is updated to rtg v0.6.0 https://isi-nlp.github.io/rtg/v0.6.0/#migrate-to-0_6 
+model_args: # model construction args
+  src_vocab: 512000
+  tgt_vocab: 64000
+  enc_layers: 9
+  dec_layers: 6
+  hid_size: 768
+  ff_size: 2048
+  n_heads: 12
+  attn_bias: true
+  attn_dropout: 0.1
+  dropout: 0.1
+  activation: gelu
+  tied_emb: one-way
+  self_attn_rel_pos: 0
+model_type: tfmnmt  # model type. tfmnmt is the transformer NMT model
+
+optimizer:
+  name: adam
+  args:
+    betas:
+    - 0.9
+    - 0.98
+    eps: 1.0e-09
+    lr: 0.1
+
+schedule:
+  name: noam
+  args:
+    constant: 2
+    warmup: 8000
+    model_dim: 768
+
+criterion:
+  name: smooth_kld
+  args:
+    label_smoothing: 0.1
+
+prep: # data preparation
+  codec_lib: nlcodec
+  char_coverage: 0.99999
+  max_src_types: 512000
+  max_tgt_types: 64000
+  pieces: bpe   # choices: bpe, char, word, unigram  from google/sentencepiece
+  shared_vocab: false  # true means same vocab for src and tgt, false means different vocabs
+  src_len: 320   # longer sentences, decision is made as per 'truncate={true,false}'
+  tgt_len: 320
+  truncate: true   # what to do with longer sentences: if true truncate at src_len or tgt_len; if false filter away
+  train_src: data/train-all.cleandedupe.downsample.src.tok
+  train_tgt: data/train-all.cleandedupe.downsample.eng.tok
+  valid_src: data/devs.shuf10k.src.tok
+  valid_tgt: data/devs.shuf10k.eng.tok
+  valid_tgt_raw: data/devs.shuf10k.eng
+  max_part_size: 5_000_000
+
+spark: # add this block to enable spark backend
+  spark.master: local[60]  # TODO: change this; set it to available number
+  spark.app.name: RTG NMT on Spark
+  spark.driver.memory: 900g  #TODO: change this; set it to available number
+  spark.serializer: org.apache.spark.serializer.KryoSerializer
+  spark.local.dir: /scratch2/tnarayan/tmp/spark
+  spark.driver.maxResultSize: 0  # dont worry about result size, all are in one machine
+  #key1: value1    # any other spark configs you want to control
+
+
+tester:
+  decoder:
+    beam_size: 4
+    batch_size: 30000  # this is for 1 beam; effective_batch_size = batch_size / beam_size
+    lp_alpha: 0.6     # length penalty
+    ensemble: 5
+    max_len: 50
+  suit:  # suit of tests to run after the training
+    # name of test and list of src.tok, ref files (ref should be unmodified)
+    valid250:
+    - data/devs.shuf10k.src.tok
+    - data/devs.shuf10k.eng
+trainer:
+  init_args:
+    chunk_size: 5   # generation in chunks of time steps to reduce memory consumptio
+    grad_accum: 4
+    fp16: true
+    #clip_grad_norm: 5
+  batch_size: [200_000, 20_000]   # not exceeding these many tokens (including paddings).
+  check_point: 1000  # how often to checkpoint?
+  keep_models: 20   # how many checkpoints to keep on disk (small enough to save disk, large enough for checkpt averaging
+  steps: 200000   # how many steps to train
+  keep_in_mem: false
+  early_stop:
+    enabled: true
+    by: bleu
+    signi_round: 2
+    patience: 10
+    min_steps: 32000
+
+updated_at: '2022-03-06T10:59:02.287684'
+rtg_version:
+  previous:
+  last_worked: 0.6.1
